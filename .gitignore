@@ -1,0 +1,9 @@
+node_modules
+myenv64
+.wwebjs_auth
+.wwebjs_cache
+__pycache__/
+package-lock.json
+.env
+*.pyc
+*.pyo

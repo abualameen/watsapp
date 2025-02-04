@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp CRM</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            margin: 0;
+        }
+        .chat-list {
+            width: 30%;
+            background-color: #f7f7f7;
+            border-right: 1px solid #ccc;
+            overflow-y: auto;
+        }
+        .chat-item {
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+        }
+        .chat-item:hover {
+            background-color: #eaeaea;
+        }
+        .chat-item .chat-name {
+            font-weight: bold;
+        }
+        .messages {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+        }
+        .message.from {
+            align-self: flex-start;
+            background-color: #f1f1f1;
+        }
+        .message.to {
+            align-self: flex-end;
+            background-color: #dcf8c6;
+        }
+        .input-box {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+        }
+        .input-box input {
+            flex: 1;
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .input-box button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #25d366;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .input-box button:hover {
+            background-color: #1da850;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-list" id="chatList">
+        <!-- Lista de chats cargada dinámicamente -->
+    </div>
+    <div class="messages">
+        <div class="chat-messages" id="chatMessages">
+            <!-- Mensajes cargados dinámicamente -->
+        </div>
+        <div class="input-box">
+            <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
+            <button id="sendButton">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        const userId = 'diegotest5'; // Cambiar por el ID del usuario activo
+        let selectedChat = null;
+
+        async function fetchChats() {
+            const response = await fetch(`http://localhost:3000/get-chats/${userId}`);
+            const chats = await response.json();
+            const chatList = document.getElementById('chatList');
+            chatList.innerHTML = '';
+
+            chats.forEach(chat => {
+                const chatItem = document.createElement('div');
+                chatItem.className = 'chat-item';
+                chatItem.innerHTML = `<span class="chat-name">${chat.name}</span>`;
+                chatItem.onclick = () => fetchMessages(chat.id);
+                chatList.appendChild(chatItem);
+            });
+        }
+
+        async function fetchMessages(chatId) {
+            selectedChat = chatId;
+            const response = await fetch(`http://localhost:3000/get-messages/${userId}/${chatId}`);
+            const messages = await response.json();
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = '';
+
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message ' + (msg.from === userId ? 'to' : 'from');
+                messageDiv.textContent = msg.body;
+                chatMessages.appendChild(messageDiv);
+            });
+        }
+
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value;
+            if (message && selectedChat) {
+                await fetch('http://localhost:3000/send-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId,
+                        contact: selectedChat,
+                        message
+                    })
+                });
+                messageInput.value = '';
+                fetchMessages(selectedChat);
+            }
+        }
+
+        document.getElementById('sendButton').onclick = sendMessage;
+
+        // Cargar lista de chats al inicio
+        fetchChats();
+    </script>
+</body>
+</html>

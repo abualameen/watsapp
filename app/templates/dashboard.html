@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp CRM</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        label {
+            margin-right: 10px;
+        }
+        input, button {
+            margin-right: 10px;
+        }
+        #qr-code img {
+            max-width: 100%;
+            margin-top: 10px;
+        }
+        .message-form {
+            margin-top: 20px;
+        }
+        .message-form input, .message-form textarea {
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WhatsApp CRM</h1>
+
+    <h2>Register User</h2>
+    <form id="register-form">
+        <label for="firstName">First Name:</label>
+        <input type="text" id="firstName" name="firstName" required>
+        <label for="lastName">Last Name:</label>
+        <input type="text" id="lastName" name="lastName" required>
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+        <button type="submit">Register</button>
+    </form>
+
+    <h2>Login User</h2>
+    <form id="login-form">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+        <button type="submit">Login</button>
+    </form>
+
+    <h2>Iniciar sesión en WhatsApp</h2>
+    <form id="login-whatsapp-form">
+        <label for="userId">ID de Usuario:</label>
+        <input type="text" id="userId" name="userId" required>
+        <button type="submit">Iniciar Sesión</button>
+    </form>
+    <div id="qr-code"></div>
+
+    <h2>Enviar mensaje</h2>
+    <form id="message-form" class="message-form">
+        <label for="contact">Número de contacto:</label>
+        <input type="text" id="contact" name="contact" required>
+        <label for="message">Mensaje:</label>
+        <textarea id="message" name="message" required></textarea>
+        <button type="submit">Enviar</button>
+    </form>
+
+    <script>
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('firstName').value;
+            const lastname = document.getElementById('lastName').value;
+            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, lastname, email, username, password })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+            } else {
+                alert(data.error || 'An error occurred');
+            }
+        });
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            // Check if the user is already logged in
+            const token = localStorage.getItem('access_token');
+            if (token) {
+                alert('You are already logged in.');
+                return;
+            }
+
+            // Proceed with the login request
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                alert(data.message || 'Login successful');
+                localStorage.setItem('access_token', data.token);
+            } else {
+                alert(data.error || 'An error occurred');
+            }
+        });
+        document.getElementById('login-whatsapp-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = document.getElementById('userId').value;
+
+            const response = await fetch('/start-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                if (data.qrCode) {
+                    document.getElementById('qr-code').innerHTML = `<img src="${data.qrCode}" />`;
+                }
+            } else {
+                alert(data.error || 'An error occurred');
+            }
+        });
+
+        document.getElementById('message-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const contact = document.getElementById('contact').value;
+            const message = document.getElementById('message').value;
+            const userId = 'diegotest5';  // Puedes obtenerlo de la sesión o una variable dinámica.
+
+            const response = await fetch('/api/send-message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+                body: JSON.stringify({ userId, contact, message })
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+            } else {
+                alert(data.error || 'An error occurred');
+            }
+        });
+    </script>
+</body>
+</html>

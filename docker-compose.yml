@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  crm_db:
+    image: postgres:14
+    container_name: crm_db
+    environment:
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: crm_password
+      POSTGRES_DB: crm_db
+    ports:
+      - "5432:5432"
+    networks:
+      - crm_network
+    volumes:
+      - crm_db_data:/var/lib/postgresql/data
+    restart: always
+
+  chrome:
+    image: browserless/chrome:latest
+    container_name: chrome
+    ports:
+      - "3001:3000"
+    networks:
+      - crm_network
+    restart: always
+
+  crm_app:
+    build:
+      context: .
+    container_name: crm_app
+    depends_on:
+      - crm_db
+      - chrome
+    ports:
+      - "5000:5000"
+      - "3000:3000"
+    networks:
+      - crm_network
+    environment:
+      DATABASE_URL: "postgresql://crm_user:crm_password@crm_db:5432/crm_db"
+      SQLALCHEMY_DATABASE_URI: "postgresql://crm_user:crm_password@crm_db:5432/crm_db"
+      SECRET_KEY: "april_1985@"
+      JWT_SECRET_KEY: "1985_april@"
+      PUPPETEER_WS_ENDPOINT: "ws://chrome:3000"
+    restart: always
+
+networks:
+  crm_network:
+    driver: bridge
+
+volumes:
+  crm_db_data:
