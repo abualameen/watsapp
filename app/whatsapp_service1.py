@@ -1,53 +1,12 @@
-# import subprocess
-# import os
-# import requests
-
-# class WhatsAppService:
-#     def __init__(self):
-#         self.node_server = None
-#         self.base_url = "http://localhost:3000"
-
-#     def start(self):
-#         # Inicia el servidor de Node.js para manejar WhatsApp-web.js
-#         try:
-#             self.node_server = subprocess.Popen(
-#                 ["node", "whatsapp_server.js"],
-#                 cwd=os.path.dirname(os.path.abspath(__file__)),
-#                 stdout=subprocess.PIPE,
-#                 stderr=subprocess.PIPE
-#             )
-#             print("Servidor Node.js iniciado correctamente.")
-#         except Exception as e:
-#             raise RuntimeError(f"Error iniciando el servicio de WhatsApp: {str(e)}")
-
-#     def stop(self):
-#         if self.node_server:
-#             self.node_server.terminate()
-#             print("Servidor Node.js detenido.")
-
-#     def send_message(self, user_id, contact, message):
-#         # Envía una solicitud HTTP al servidor Node.js para enviar un mensaje
-#         try:
-#             url = f"{self.base_url}/send-message"
-#             payload = {
-#                 "userId": user_id,
-#                 "contact": contact,
-#                 "message": message
-#             }
-#             response = requests.post(url, json=payload)
-#             response.raise_for_status()  # Lanza una excepción si ocurre un error HTTP
-#             return response.json()
-#         except requests.exceptions.RequestException as e:
-#             raise RuntimeError(f"Error enviando mensaje: {str(e)}")
-
-
 import subprocess
 import os
 import requests
-from utils import get_project_root, is_port_in_use
+from app.utils import get_project_root, is_port_in_use
+import logging
 
+logging.basicConfig(level=logging.DEBUG)
 
-class WhatsAppService:
+class WhatsAppService1:
     def __init__(self):
         self.node_server = None
         self.base_url = "http://localhost:3000"  # Docker exposes this internally
@@ -89,10 +48,12 @@ class WhatsAppService:
             url = f"{self.base_url}/send-message"
             payload = {
                 "userId": user_id,
-                "contact": contact,
-                "message": message
+                "phone": contact,
+                "text": message
             }
+            logging.debug(f"payload: {payload}")
             response = requests.post(url, json=payload)
+            logging.debug(f"rpo: {response}")
             response.raise_for_status()  # Raises an error for HTTP issues
             return response.json()
         except requests.exceptions.RequestException as e:

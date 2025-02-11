@@ -54,9 +54,9 @@
     <h2>Login User</h2>
     <form id="login-form">
         <label for="username">Username:</label>
-        <input type="text" id="username" name="username" required>
+        <input type="text" id="username1" name="username" required>
         <label for="password">Password:</label>
-        <input type="password" id="password" name="password" required>
+        <input type="password" id="password1" name="password" required>
         <button type="submit">Login</button>
     </form>
 
@@ -102,15 +102,15 @@
 
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+            const username = document.getElementById('username1').value.trim();
+            const password = document.getElementById('password1').value.trim();
 
             // Check if the user is already logged in
-            const token = localStorage.getItem('access_token');
-            if (token) {
-                alert('You are already logged in.');
-                return;
-            }
+            // const token = localStorage.getItem('access_token');
+            // if (token) {
+            //     alert('You are already logged in.');
+            //     return;
+            // }
 
             // Proceed with the login request
             const response = await fetch('/api/login', {
@@ -123,6 +123,7 @@
             if (response.ok) {
                 alert(data.message || 'Login successful');
                 localStorage.setItem('access_token', data.token);
+                localStorage.setItem('refresh_token', data.refresh_token);
             } else {
                 alert(data.error || 'An error occurred');
             }
@@ -130,6 +131,7 @@
         document.getElementById('login-whatsapp-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const userId = document.getElementById('userId').value;
+            console.log(userId)
 
             const response = await fetch('/start-session', {
                 method: 'POST',
@@ -138,6 +140,7 @@
             });
 
             const data = await response.json();
+            console.log(data)
             if (response.ok) {
                 if (data.qrCode) {
                     document.getElementById('qr-code').innerHTML = `<img src="${data.qrCode}" />`;
@@ -147,25 +150,108 @@
             }
         });
 
-        document.getElementById('message-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const contact = document.getElementById('contact').value;
-            const message = document.getElementById('message').value;
-            const userId = 'diegotest5';  // Puedes obtenerlo de la sesión o una variable dinámica.
+        async function refreshToken() {
+            const refreshToken = localStorage.getItem('refresh_token');
 
-            const response = await fetch('/api/send-message', {
+            if (!refreshToken) {
+                alert('Please log in again.');
+                window.location.href = '/login';
+                return null;
+            }
+
+            const response = await fetch('/api/refresh-token', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
-                body: JSON.stringify({ userId, contact, message })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${refreshToken}` } // Use refresh token
+
+                //headers: { 'Content-Type': 'application/json' },
+                //body: JSON.stringify({ refresh_token: refreshToken })  //Send token in body
             });
 
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.access_token) {  //Ensure token is in the expected format
+                    localStorage.setItem('access_token', data.access_token);  //Correct key
+                    console.log('data.acesstok', data.access_token)
+                    return data.access_token;
+                } else {
+                    console.error('Invalid response:', data);
+                    alert('Session expired. Please log in again.');
+                    window.location.href = '/login';
+                    return null;
+                }
+            } else {
+                alert('Session expired. Please log in again.');
+                window.location.href = '/login';
+                return null;
+            }
+        }
+
+
+        async function sendMessage(to, message) {  
+            let token = localStorage.getItem('access_token');
+            let refresh_token = localStorage.getItem('refresh_token');
+           // let refresh_token = localStorage.getItem('refresh_token');
+            console.log('token:', token);
+            console.log('refr', refresh_token);
+            //console.log('refreshtoken:', token)
+       
+
+            console.log('Sending:', { to, message }); // Debugging
+
+            let response = await fetch('/api/send-whatsapp-message', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ to, message }) // Fix: Ensure correct payload
+            });
+
+            if (response.status === 401) {
+                const data = await response.json();
+                if (data.msg === 'Token has expired') {
+                    // Refresh token and retry request
+                    token = await refreshToken();
+                    console.log('newtok', token)
+                    if (token) {
+                        response = await fetch('/api/send-whatsapp-message', {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json', 
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ to, message }) //Fix: Ensure data is sent again
+                        });
+                    }
+                }
+            }
+
             const data = await response.json();
+            console.log('Response:', data);
+
             if (response.ok) {
                 alert(data.message);
             } else {
                 alert(data.error || 'An error occurred');
             }
+        }
+
+// Fix: Pass `contact` and `message` to `sendMessage`
+        document.getElementById('message-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const to = document.getElementById('contact').value.trim();
+            const message = document.getElementById('message').value.trim();
+
+            if (!contact || !message) {
+                alert('Please enter both contact and message.');
+                return;
+            }
+
+            await sendMessage(to, message);
         });
+
     </script>
 </body>
 </html>

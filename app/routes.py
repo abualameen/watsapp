@@ -5,12 +5,13 @@ from app.controllers import (
     create_message, get_messages, update_message_status,
     create_ticket, get_tickets, update_ticket_status, close_ticket,
     create_queue, get_queues, update_queue_priority, reassign_message,
-    create_event, get_events, update_event, delete_event,
+    create_event, get_events, update_event, delete_event, refresh_token,
     start_whatsapp, send_whatsapp_message,
     get_messages_by_ticket, get_unlinked_messages
 )
 import requests
 import os
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 
 # Create a Blueprint
 bp = Blueprint('api', __name__, url_prefix='/api')
@@ -24,6 +25,11 @@ class Register(Resource):
 class Login(Resource):
     def post(self):
         return login_user()
+
+class RefreshToken(Resource):
+    @jwt_required(refresh=True)
+    def post(self):
+        return refresh_token()
 
 # Message routes
 class Messages(Resource):
@@ -98,12 +104,14 @@ class StartWhatsApp(Resource):
         return start_whatsapp()
 
 class SendMessage(Resource):
+    @jwt_required()
     def post(self):
         return send_whatsapp_message()
 
 # Register API resources
 api.add_resource(Register, '/register')
 api.add_resource(Login, '/login')
+api.add_resource(RefreshToken, '/refresh-token')
 api.add_resource(Messages, '/messages')
 api.add_resource(MessageStatus, '/messages/<int:message_id>/status')
 api.add_resource(Tickets, '/tickets')
@@ -117,7 +125,7 @@ api.add_resource(ReassignMessage, '/queues/<int:queue_id>/reassign')
 api.add_resource(Events, '/events')
 api.add_resource(EventDetail, '/events/<int:event_id>')
 api.add_resource(StartWhatsApp, '/start-whatsapp')
-api.add_resource(SendMessage, '/send-message')
+api.add_resource(SendMessage, '/send-whatsapp-message')
 
 # Register Blueprint with the application
 def init_app(app):

@@ -7,9 +7,20 @@ from flask_jwt_extended import create_access_token
 from app.models import User, Message, Ticket, Queue, Event, WhatsAppMessage, TicketStatus, ChatbotControl
 from app.schemas import message_schema, messages_schema, ticket_schema, tickets_schema, queue_schema, queues_schema, event_schema, events_schema
 from app.services.whatsapp_service import WhatsAppService
+from app.whatsapp_service1 import WhatsAppService1
 from sqlalchemy.exc import IntegrityError
+#from flask_jwt_extended import jwt_required, get_jwt_identity
+# from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+import logging
+
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, verify_jwt_in_request
 
 whatsapp_service = WhatsAppService()
+whatsapp_service1 = WhatsAppService1()
+
+logging.basicConfig(level=logging.DEBUG)
+
+
 
 def register_user():
     try:
@@ -31,10 +42,10 @@ def register_user():
         name = data["name"]
         lastname = data["lastname"]
         email = data["email"]
-        print(f"Creando usuario: {username}, role_id: {role_id}, name: {name}, lastname: {lastname}, email: {email}")  # Depuración
+        #print(f"Creando usuario: {username}, role_id: {role_id}, name: {name}, lastname: {lastname}, email: {email}")  # Depuración
 
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-        print(f"Contraseña encriptada: {hashed_password}")
+        #print(f"Contraseña encriptada: {hashed_password}")
 
         if not role_id:
             default_role = Role.query.filter_by(name="User").first()
@@ -68,27 +79,45 @@ def register_user():
         # Devuelve un mensaje de error genérico en formato JSON
         return {"error": f"Error interno del servidor: {str(e)}"}, 500
 
+
+
+# def refresh_token():
+#     current_user = get_jwt_identity()
+#     new_token = create_access_token(identity=current_user)
+#     return {"token": new_token}, 200
+
+
+def refresh_token():
+    current_user = get_jwt_identity()  # Extract user identity
+    new_token = create_access_token(identity=current_user)  # Create new access token
+    return {"access_token": new_token}, 200  # Use correct key
+
+
+
+
 def login_user():
     data = request.get_json()
-    print(data)
+    #logging.debug(f"Login data: {data}")
     user = User.query.filter_by(username=data['username']).first()
-    print(f"User found: {user}")
-
+    #logging.debug(f"User found: {user}")
     if not user:
-        print("Usuario no encontrado")  # Depuración
+        logging.error("User not found")
         return {"error": "Credenciales inválidas"}, 401
 
     if not bcrypt.check_password_hash(user.password, data['password']):
-        print("Contraseña incorrecta")  # Depuración
+        logging.error("Password mismatch")
         return {"error": "Credenciales inválidas"}, 401
 
-    # Ensure the user has a valid role
     if not user.role:
         return {"error": "Usuario sin rol asignado"}, 400
+    #logging.debug(f"User logging in: {user.username}, Role: {user.role.name}, ID: {user.id}")
 
-    token = create_access_token(identity={"username": user.username, "role": user.role.name})
-    print(f"Token created: {token}")  # Depuración
-    return {"token": token}, 200
+    access_token = create_access_token(identity={"username": user.username, "role": user.role.name, "user_id": user.id})
+    refresh_token = create_refresh_token(identity={"username": user.username, "role": user.role.name, "user_id": user.id})
+    ##logging.debug((f"Referesh created: {refresh_token}"))
+    #logging.debug((f"Token created: {access_token}"))
+    return {"token": access_token, "refresh_token": refresh_token}, 200
+
 
 # Crear un mensaje
 def create_message():
@@ -242,10 +271,26 @@ def start_whatsapp():
     except Exception as e:
         return {"error": str(e)}, 500
 
+
+
 def send_whatsapp_message():
+    print('Entering send_whatsapp_message function')
+    logging.debug('Entering send_whatsapp_message function')
+    verify_jwt_in_request()  # Manually verify the JWT token
+    print('JWT Identity:', get_jwt_identity())  # Debug: Print the JWT identity
+    logging.debug(f"JWT Identity:', {get_jwt_identity()}")
     data = request.get_json()
+    logging.debug(f"data_msg: {data}")
+
+    user_id = get_jwt_identity().get('user_id')  # Retrieve user ID from the JWT token
+    logging.debug(f"user_id {user_id}")
+    # user_id = get_jwt_identity().get('user_id')  # Retrieve user ID from the JWT token
+
+    if not user_id:
+        return jsonify({'error': 'User not logged in'}), 401
+
     try:
-        whatsapp_service.send_message(data['contact'], data['message'])
+        whatsapp_service1.send_message(user_id, data['to'], data['message'])
         return {"message": "Mensaje enviado exitosamente"}, 200
     except Exception as e:
         return {"error": str(e)}, 500

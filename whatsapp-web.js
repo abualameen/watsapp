@@ -23,6 +23,7 @@ let qrCodes = {};  // Store QR code URLs in memory
 
 app.post('/start-session', async (req, res) => {
     try {
+        console.log("loging in whatsap")
         const { userId } = req.body;
 
         // Check if the user already has a session
@@ -108,6 +109,12 @@ app.post('/start-session', async (req, res) => {
 app.post('/send-message', async (req, res) => {
     try {
         const { userId, to, message } = req.body;
+        console.log(userId)
+        console.log(to)
+        console.log(message)
+
+        console.log("Clients Object:", clients); // Debug: Print all active clients
+        console.log("Received userId:", userId); // Debug: Print received userId
 
         if (!clients[userId] || !clients[userId].ready) {
             return res.status(400).json({ message: 'Sesión no iniciada o no lista' });
