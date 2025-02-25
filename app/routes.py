@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, send_from_directory
+from flask import Blueprint, render_template, request, jsonify, send_from_directory, session
 from flask_restful import Api, Resource
 from app.controllers import (
     register_user, login_user,
@@ -6,12 +6,16 @@ from app.controllers import (
     create_ticket, get_tickets, update_ticket_status, close_ticket,
     create_queue, get_queues, update_queue_priority, reassign_message,
     create_event, get_events, update_event, delete_event, refresh_token,
-    start_whatsapp, send_whatsapp_message,
-    get_messages_by_ticket, get_unlinked_messages
+    start_whatsapp, send_whatsapp_message, get_messages_by_ticket, get_unlinked_messages,
+    send_chatbot_response, assign_agent, resolve_ticket
 )
 import requests
 import os
-from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity, verify_jwt_in_request
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+
 
 # Create a Blueprint
 bp = Blueprint('api', __name__, url_prefix='/api')
@@ -30,6 +34,12 @@ class RefreshToken(Resource):
     @jwt_required(refresh=True)
     def post(self):
         return refresh_token()
+
+class GetUser(Resource):
+    @jwt_required()
+    def get(self):
+        return get_user()
+
 
 # Message routes
 class Messages(Resource):
@@ -108,6 +118,21 @@ class SendMessage(Resource):
     def post(self):
         return send_whatsapp_message()
 
+class SendChatbotResponse(Resource):
+    @jwt_required()
+    def post(self, ticket_id):
+        return send_chatbot_response(ticket_id)
+
+class AssignAgent(Resource):
+    @jwt_required()
+    def post(self, ticket_id):
+        return assign_agent(ticket_id)
+
+class ResolveTicket(Resource):
+    @jwt_required()
+    def post(self, ticket_id):
+        return resolve_ticket(ticket_id)
+
 # Register API resources
 api.add_resource(Register, '/register')
 api.add_resource(Login, '/login')
@@ -126,6 +151,12 @@ api.add_resource(Events, '/events')
 api.add_resource(EventDetail, '/events/<int:event_id>')
 api.add_resource(StartWhatsApp, '/start-whatsapp')
 api.add_resource(SendMessage, '/send-whatsapp-message')
+api.add_resource(SendChatbotResponse, '/send-chatbot-response/<int:ticket_id>')
+api.add_resource(AssignAgent, '/assign-agent/<int:ticket_id>')
+api.add_resource(ResolveTicket, '/resolve-ticket/<int:ticket_id>')
+api.add_resource(GetUser, '/get-user')
+
+
 
 # Register Blueprint with the application
 def init_app(app):
@@ -145,9 +176,62 @@ def init_app(app):
         response = requests.post('http://localhost:3000/start-session', json={"userId": user_id})
         return jsonify(response.json())
 
+    # @app.route('/chats')
+    # #@jwt_required()
+    # def chats():
+    #     user_id = "abulyaqs"  # Puedes obtenerlo de la sesión o una variable dinámica.
+    #     #verify_jwt_in_request()  # Manually verify the JWT token
+    #     #print('JWT Identity:', get_jwt_identity())  # Debug: Print the JWT identity
+    #     #logging.debug(f"JWT Identity:', {get_jwt_identity()}")
+    #     #user_id = get_jwt_identity().get('username') 
+    #     response = requests.get(f'http://localhost:3000/get-chats?userId={user_id}')
+    #     chats_data = response.json()
+    #     return render_template('chats.html', chats=chats_data)
+
+ 
+
     @app.route('/chats')
     def chats():
-        user_id = "diegotest5"  # Puedes obtenerlo de la sesión o una variable dinámica.
-        response = requests.get(f'http://localhost:3000/get-chats?userId={user_id}')
-        chats_data = response.json()
-        return render_template('chats.html', chats=chats_data)
+        #user_id = request.args.get('userId')  #Get userId dynamically from query params
+        user_id = session.get('username')
+        to = session.get('to')
+        chatId= to[1:] + "@c.us"
+        logging.debug(f"userid: {user_id}") 
+        if not user_id:
+            return jsonify({"error": "Missing userId"}), 400  # Ensure userId is provided
+
+        try:
+            response = requests.get(f'http://localhost:3000/get-chats?userId={user_id}')
+
+            if response.status_code != 200:
+                return jsonify({"error": "Failed to fetch chats", "status_code": response.status_code, "text": response.text}), response.status_code
+
+            # Log and return response JSON
+            chats_data = response.json()
+            print("Chats fetched:", chats_data)  # Debug log
+            logging.debug(f"chats ftech: {chats_data}")
+            return render_template('chats.html', chats=chats_data, to=to, chatId=chatId, user_id=user_id)
+
+        except Exception as e:
+            logging.error(f"🔥 Error fetching chats: {e}")
+            return jsonify({"error": "Internal server error"}), 500
+
+    # @app.route('/messages')
+    # def messages():
+    #     user_id = session.get('username')
+    #     to = session.get('to')
+    #     logging.debug(f"useriddd: {user_id}")
+    #     logging.debug(f"too: {to}") 
+    #     chatId= to[1:] + "@c.us"
+    #     if not user_id and not to:
+    #         return jsonify({"error": "Missing userId and contact"}), 400  # Ensure userId is provided
+    #     response = requests.get(f'http://localhost:3000/get-messages?userId={user_id}&chatId={chatId}')
+
+    #     if response.status_code != 200:
+    #         return jsonify({"error": "Failed to fetch messages"}), response.status_code
+
+    #     messages_data = response.json()
+    #     return render_template('chats.html', messages=messages_data)
+        
+
+

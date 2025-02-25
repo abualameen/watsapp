@@ -48,7 +48,7 @@ class WhatsAppService1:
             url = f"{self.base_url}/send-message"
             payload = {
                 "userId": user_id,
-                "phone": contact,
+                "to": contact,
                 "text": message
             }
             logging.debug(f"payload: {payload}")

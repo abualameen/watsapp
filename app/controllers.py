@@ -1,5 +1,5 @@
-from flask import request, jsonify
-from app.models import User, Role
+from flask import request, jsonify,session
+from app.models import User, Role, Contact, Message, Priority, Queue, TicketStatus
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, bcrypt
@@ -93,6 +93,17 @@ def refresh_token():
     return {"access_token": new_token}, 200  # Use correct key
 
 
+# from flask import jsonify
+# from flask_jwt_extended import jwt_required, get_jwt_identity
+
+
+def get_user():
+    user_identity = get_jwt_identity()
+    user_id = user_identity.get('username') if isinstance(user_identity, dict) else user_identity  # Ensure correct format
+    return jsonify({"userId": user_id})
+
+
+
 
 
 def login_user():
@@ -111,6 +122,9 @@ def login_user():
     if not user.role:
         return {"error": "Usuario sin rol asignado"}, 400
     #logging.debug(f"User logging in: {user.username}, Role: {user.role.name}, ID: {user.id}")
+    session['user_id'] = user.id  # Store user ID in session
+    session['username'] = user.username  # Optional: Store username
+    session['role'] = user.role.name  # Optional: Store role
 
     access_token = create_access_token(identity={"username": user.username, "role": user.role.name, "user_id": user.id})
     refresh_token = create_refresh_token(identity={"username": user.username, "role": user.role.name, "user_id": user.id})
@@ -272,28 +286,179 @@ def start_whatsapp():
         return {"error": str(e)}, 500
 
 
-
 def send_whatsapp_message():
-    print('Entering send_whatsapp_message function')
-    logging.debug('Entering send_whatsapp_message function')
-    verify_jwt_in_request()  # Manually verify the JWT token
-    print('JWT Identity:', get_jwt_identity())  # Debug: Print the JWT identity
-    logging.debug(f"JWT Identity:', {get_jwt_identity()}")
-    data = request.get_json()
-    logging.debug(f"data_msg: {data}")
-
-    user_id = get_jwt_identity().get('user_id')  # Retrieve user ID from the JWT token
-    logging.debug(f"user_id {user_id}")
-    # user_id = get_jwt_identity().get('user_id')  # Retrieve user ID from the JWT token
-
-    if not user_id:
-        return jsonify({'error': 'User not logged in'}), 401
-
     try:
-        whatsapp_service1.send_message(user_id, data['to'], data['message'])
-        return {"message": "Mensaje enviado exitosamente"}, 200
+        logging.debug('Entering send_whatsapp_message function')
+        verify_jwt_in_request()  # Manually verify the JWT token
+        logging.debug(f"JWT Identity: {get_jwt_identity()}")
+        data = request.get_json()
+        logging.debug(f"data_msg: {data}")
+        session['to'] = data['to']
+
+        user_name = get_jwt_identity().get('username')  # Retrieve user ID from the JWT token
+        logging.debug(f"use_id: {user_name}")
+
+        if not user_name:
+            logging.debug(f"use_id: {user_name}")
+            return jsonify({'error': 'User not logged in'}), 401
+
+        user = User.query.filter_by(username=user_name).first()
+        logging.debug(f"user: {user}")
+        if not user:
+            logging.debug(f"user: {user}")
+            return jsonify({'error': 'User not found'})
+            
+        # Check if this is the first message from the contact
+        existing_contact = Contact.query.filter_by(phone_number=data['to']).first()
+        if not existing_contact:
+            existing_contact = Contact(name=user.name, lastname=user.lastname, phone_number=data['to'], email=user.email)
+            db.session.add(existing_contact)
+            db.session.commit()
+
+        # Check if this is the first message from the contact
+        if not Message.query.filter_by(contact_id=existing_contact.id).first():
+            support_queue = Queue.query.filter_by(name='Support').first()
+            default_status = TicketStatus.query.filter_by(name='Open').first()
+            default_priority = Priority.query.filter_by(name='Medium').first()
+
+            new_ticket = Ticket(
+                contact_id=existing_contact.id,
+                queue_id=support_queue.id,
+                assigned_to=None,  # Initially unassigned
+                ticket_status_id=default_status.id,
+                priority_id=default_priority.id,
+                name=existing_contact.name,  # You might want to handle this differently
+                description=data['message']
+            )
+            db.session.add(new_ticket)
+            db.session.commit()
+
+            # Create a chatbot control entry for the new ticket
+            chatbot_control = ChatbotControl(
+                ticket_id=new_ticket.id,
+                is_handled_by_bot=True,
+                transferred_to_agent=False
+            )
+            db.session.add(chatbot_control)
+            db.session.commit()
+
+            # Set the ticket_id for the new message
+            new_message = Message(
+                contact_id=existing_contact.id,
+                ticket_id=new_ticket.id,  # Assign the ticket_id here
+                direction='inbound',
+                content=data['message'],
+                sent_by=None,
+                is_read=False
+            )
+        else:
+            # If it's not the first message, create the message without a ticket_id
+            new_message = Message(
+                contact_id=existing_contact.id,
+                ticket_id=None,  # This will still cause an error if ticket_id is NOT NULL
+                direction='inbound',
+                content=data['message'],
+                sent_by=None,
+                is_read=False
+            )
+
+        db.session.add(new_message)
+        db.session.commit()
+
+        try:
+            response = whatsapp_service1.send_message(user_name, data['to'], data['message'])
+            
+            # Ensure the response is JSON serializable
+            if hasattr(response, 'json'):  # Check if the response has a .json() method
+                response_data = response.json()
+            else:
+                response_data = str(response)  # Fallback to string representation
+            
+            logging.debug(f"response_data: {response_data}")
+            return {"message": "Mensaje enviado exitosamente", "response": response_data}, 200
+        except Exception as e:
+            logging.error(f"Error in send_message: {str(e)}")
+            return {"error": str(e)}, 500
     except Exception as e:
-        return {"error": str(e)}, 500
+        logging.error('Error: %s', str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+def send_chatbot_response(ticket_id):
+    try:
+        ticket = Ticket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        # Generate a chatbot response
+        chatbot_message = "Thank you for your message. We will get back to you shortly."
+        new_message = Message(
+            contact_id=ticket.contact_id,
+            ticket_id=ticket.id,
+            direction='outbound',
+            content=chatbot_message,
+            sent_by=None,  # Chatbot response
+            is_read=False
+        )
+        db.session.add(new_message)
+        db.session.commit()
+
+        # Send the chatbot response using the WhatsApp service
+        response = whatsapp_service1.send_message(ticket.user_id, ticket.contact.phone_number, chatbot_message)
+        logging.debug('res: %s', response)
+
+        if 'error' in response:
+            return jsonify(response), 500
+
+        return jsonify({'message': 'Chatbot response sent successfully'}), 200
+    except Exception as e:
+        logging.error('Error: %s', str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+def assign_agent(ticket_id):
+    try:
+        data = request.get_json()
+        agent_id = data.get('agent_id')
+
+        if not agent_id:
+            return jsonify({'error': 'Agent ID is required'}), 400
+
+        ticket = Ticket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        ticket.assigned_to = agent_id
+        db.session.commit()
+
+        return jsonify({'message': 'Ticket assigned to agent successfully'}), 200
+    except Exception as e:
+        logging.error('Error: %s', str(e))
+        return jsonify({'error': str(e)}), 500
+
+
+
+def resolve_ticket(ticket_id):
+    try:
+        ticket = Ticket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        closed_status = TicketStatus.query.filter_by(name='Closed').first()
+        if not closed_status:
+            closed_status = TicketStatus(name='Closed', code='closed', description='Ticket is closed')
+            db.session.add(closed_status)
+            db.session.commit()
+
+        ticket.ticket_status_id = closed_status.id
+        db.session.commit()
+
+        return jsonify({'message': 'Ticket resolved successfully'}), 200
+    except Exception as e:
+        logging.error('Error: %s', str(e))
+        return jsonify({'error': str(e)}), 500
+
+
 
 def get_messages_by_ticket(ticket_id):
     ticket = Ticket.query.get(ticket_id)

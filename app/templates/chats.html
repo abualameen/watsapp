@@ -25,7 +25,7 @@
         .chat-item:hover {
             background-color: #eaeaea;
         }
-        .chat-item .chat-name {
+        .chat-name {
             font-weight: bold;
         }
         .messages {
@@ -73,74 +73,160 @@
 </head>
 <body>
     <div class="chat-list" id="chatList">
-        <!-- Lista de chats cargada dinámicamente -->
+        <!-- Chats loaded dynamically -->
     </div>
     <div class="messages">
         <div class="chat-messages" id="chatMessages">
-            <!-- Mensajes cargados dinámicamente -->
+            <!-- Messages loaded dynamically -->
         </div>
         <div class="input-box">
-            <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
-            <button id="sendButton">Enviar</button>
+            <input type="text" id="messageInput" placeholder="Type a message...">
+            <button id="sendButton">Send</button>
+        </div>
+        <div class="actions">
+            <button id="chatbotResponseButton">Send Chatbot Response</button>
+            <button id="assignAgentButton">Assign Agent</button>
+            <button id="resolveTicketButton">Resolve Ticket</button>
         </div>
     </div>
 
     <script>
-        const userId = 'diegotest5'; // Cambiar por el ID del usuario activo
+        document.addEventListener("DOMContentLoaded", function () {
+            console.log("✅ DOM fully loaded!");
+
+            const sendButton = document.getElementById("sendButton");
+            const messageInput = document.getElementById("messageInput");
+
+            if (!sendButton) {
+                console.error("❌ Send button not found!");
+                return;
+            }
+            if (!messageInput) {
+                console.error("❌ Message input field not found!");
+                return;
+            }
+
+            sendButton.addEventListener("click", function () {
+                console.log("📩 Send button clicked!");
+
+                const message = messageInput.value.trim();
+                if (!message) {
+                    console.warn("⚠️ Cannot send an empty message!");
+                    return;
+                }
+
+                sendMessage();
+            });
+
+            console.log("✅ Send button event listener added successfully!");
+
+            fetchChats();
+        });
+
+        let userId = "{{ user_id }}";
+        let chatId = "{{ chatId }}";
+        let to = "{{ to }}";
         let selectedChat = null;
 
         async function fetchChats() {
-            const response = await fetch(`http://localhost:3000/get-chats/${userId}`);
-            const chats = await response.json();
-            const chatList = document.getElementById('chatList');
-            chatList.innerHTML = '';
+            try {
+                console.log("📡 Fetching chats...");
+                const response = await fetch("http://localhost:5000/chats");
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch chats (Status: ${response.status})`);
+                }
 
-            chats.forEach(chat => {
-                const chatItem = document.createElement('div');
-                chatItem.className = 'chat-item';
-                chatItem.innerHTML = `<span class="chat-name">${chat.name}</span>`;
-                chatItem.onclick = () => fetchMessages(chat.id);
-                chatList.appendChild(chatItem);
-            });
+                const data = await response.json();
+                console.log("✅ Chats received:", data);
+
+                const chatList = document.getElementById("chatList");
+                chatList.innerHTML = "";
+
+                const chats = data.chats || [];
+                chats.forEach(chat => {
+                    const chatItem = document.createElement("div");
+                    chatItem.className = "chat-item";
+                    chatItem.innerHTML = `<span class="chat-name">${chat.name}</span>`;
+                    chatItem.onclick = () => fetchMessages(chat.id);
+                    chatList.appendChild(chatItem);
+                });
+
+            } catch (error) {
+                console.error("❌ Error fetching chats:", error);
+            }
         }
 
         async function fetchMessages(chatId) {
             selectedChat = chatId;
-            const response = await fetch(`http://localhost:3000/get-messages/${userId}/${chatId}`);
-            const messages = await response.json();
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.innerHTML = '';
+            console.log(`📡 Fetching messages for chatId: ${chatId}`);
 
-            messages.forEach(msg => {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'message ' + (msg.from === userId ? 'to' : 'from');
-                messageDiv.textContent = msg.body;
-                chatMessages.appendChild(messageDiv);
-            });
+            try {
+                const response = await fetch(`http://localhost:3000/get-messages?userId=${userId}&chatId=${chatId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch messages (Status: ${response.status})`);
+                }
+
+                const data = await response.json();
+                console.log("✅ Messages API response:", data);  // Debug log
+
+                if (!data.messages || !Array.isArray(data.messages)) {
+                    throw new Error("⚠️ Invalid messages format: Expected an array but got " + typeof data.messages);
+                }
+
+                const chatMessages = document.getElementById('chatMessages');
+                chatMessages.innerHTML = '';
+
+                data.messages.forEach(msg => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message ' + (msg.from === userId ? 'to' : 'from');
+                    messageDiv.textContent = msg.body;
+                    chatMessages.appendChild(messageDiv);
+                });
+
+            } catch (error) {
+                console.error("❌ Error fetching messages:", error);
+            }
         }
 
         async function sendMessage() {
             const messageInput = document.getElementById('messageInput');
-            const message = messageInput.value;
-            if (message && selectedChat) {
-                await fetch('http://localhost:3000/send-message', {
+            const message = messageInput.value.trim();
+            selectedChat = chatId;
+            console.log('messga:', message)
+            console.log('slectedChat:', selectedChat)
+
+            if (!message || !selectedChat) {
+                console.warn("⚠️ Cannot send message: No message text or chat selected!");
+                return;
+            }
+
+            console.log(`📨 Sending message: "${message}" to chatId: ${selectedChat}`);
+
+            try {
+                const response = await fetch('http://localhost:3000/send-message', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        userId,
-                        contact: selectedChat,
-                        message
+                        userId: userId,
+                        to: to,
+                        text: message
                     })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to send message (Status: ${response.status})`);
+                }
+
+                console.log("✅ Message sent successfully!");
                 messageInput.value = '';
-                fetchMessages(selectedChat);
+                fetchMessages(selectedChat); // Refresh messages
+
+            } catch (error) {
+                console.error("❌ Error sending message:", error);
             }
         }
-
-        document.getElementById('sendButton').onclick = sendMessage;
-
-        // Cargar lista de chats al inicio
-        fetchChats();
     </script>
 </body>
 </html>

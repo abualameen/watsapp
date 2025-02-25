@@ -19,29 +19,30 @@ app.get('/health', (req, res) => {
     res.status(200).send('Server is healthy');
 });
 
-let qrCodes = {};  // Store QR code URLs in memory
+
+let qrCodes = {}; // Store QR codes for users
 
 app.post('/start-session', async (req, res) => {
     try {
-        console.log("loging in whatsap")
+        console.log("Logging in to WhatsApp...");
+        console.log('reqqqqbody:', req.body)
         const { userId } = req.body;
 
-        // Check if the user already has a session
+        // Check if session already exists
         if (clients[userId]) {
-            // Return the stored QR code URL if the session already exists
             const existingQrCode = qrCodes[userId];
             if (existingQrCode) {
-                return res.json({ qrCode: existingQrCode });  // Serve the QR code stored in memory
+                return res.json({ qrCode: existingQrCode });
             } else {
-                return res.status(400).json({ message: 'Sesión ya iniciada para este usuario' });
+                return res.status(400).json({ message: 'Session already started for this user' });
             }
         }
 
-        // Initialize a new client for this user
+        // Create a new WhatsApp client
         const client = new Client({
-            authStrategy: new LocalAuth({ 
+            authStrategy: new LocalAuth({
                 clientId: userId,
-                dataPath: '/home/appuser/app/session-data'  // Custom directory for session storage
+                dataPath: '/home/appuser/app/session-data'  // Custom session storage path
             }),
             puppeteer: {
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -54,75 +55,88 @@ app.post('/start-session', async (req, res) => {
         let qrSent = false;
 
         // Listen for QR code generation
-        client.on('qr', (qr) => {
+        client.on('qr', async (qr) => {
             if (!qrSent) {
-                console.log('QR code generated:', qr);
-                qrcode.toDataURL(qr, (err, url) => {
-                    if (err) {
-                        console.error('Error generating QR code:', err);
-                        return res.status(500).json({ message: 'Error generating QR code' });
-                    }
-                    console.log('QR code URL:', url);
-                    qrCodes[userId] = url; // Store the QR code URL for later use
+                console.log('QR Code Generated:', qr);
+                try {
+                    let url = await qrcode.toDataURL(qr);
+                    qrCodes[userId] = url; // Store QR code for later use
                     res.json({ qrCode: url });
                     qrSent = true;
-                });
+                } catch (err) {
+                    console.error('Error generating QR code:', err);
+                    return res.status(500).json({ message: 'Error generating QR code' });
+                }
             }
         });
 
-        // Listen for client readiness
+        // Listen for when the client is ready
         client.on('ready', () => {
-            console.log(`Cliente ${userId} listo`);
+            console.log(`Client ${userId} is ready`);
             clients[userId].ready = true;
         });
 
-        // Listen for client disconnection
+        // Handle client disconnection
         client.on('disconnected', (reason) => {
-            console.log(`Cliente ${userId} desconectado: ${reason}`);
+            console.log(`Client ${userId} disconnected: ${reason}`);
             delete clients[userId];
-            delete qrCodes[userId];  // Remove the QR code from memory when the session ends
+            delete qrCodes[userId]; // Remove QR code from memory
         });
 
-        // Listen for incoming messages
+        // Handle incoming messages
         client.on('message', async (msg) => {
-            console.log(`Mensaje recibido: ${msg.body} de ${msg.from}`);
+            console.log(`Message received: ${msg.body} from ${msg.from}`);
             if (msg.body.toLowerCase() === 'hola') {
                 await msg.reply('¡Hola! ¿Cómo puedo ayudarte?');
             }
         });
 
-        // Initialize the client
-        client.initialize().then(() => {
-            console.log('Client initialized');
-        }).catch((error) => {
-            console.error('Error initializing client:', error);
-        });
+        // Initialize the client with better error logging
+        client.initialize()
+            .then(() => {
+                console.log(`Client ${userId} initialized successfully`);
+            })
+            .catch((error) => {
+                console.error(`Error initializing client for ${userId}:`, error);
+            });
+
     } catch (error) {
-        console.error('Error en el manejo de la sesión:', error);
-        res.status(500).json({ message: 'Error en el servidor' });
+        console.error('Session handling error:', error);
+        res.status(500).json({ message: 'Server error' });
     }
 });
-
-
 
 // Endpoint to send a message
 app.post('/send-message', async (req, res) => {
     try {
-        const { userId, to, message } = req.body;
-        console.log(userId)
-        console.log(to)
-        console.log(message)
+        const { userId, to, text } = req.body;
+        // console.log("useridttt:", userId)
+        // console.log("phonettt:", to )
+        // console.log("textttt:", text)
+        // console.log("User ID:", req.body.userId);
+        // console.log("Phone:", req.body.phone);
+        // console.log("Text:", req.body.text);
+        console.log("bodyreq:", req.body);
+        console.log("Received userId:", userId); // Debug: Print received userId
+
+        console.log("bodyreq:", req.body)
 
         console.log("Clients Object:", clients); // Debug: Print all active clients
         console.log("Received userId:", userId); // Debug: Print received userId
+        // console.log("Client ready status:", clients[userId].ready);
+       // console.log('c', clients[userId].client)
+        console.log('cid:', clients[userId])
+        console.log('clieredy:', clients[userId].ready)
+        //clients[userId].ready = true;
 
         if (!clients[userId] || !clients[userId].ready) {
             return res.status(400).json({ message: 'Sesión no iniciada o no lista' });
         }
-
         const client = clients[userId].client;
-        const chatId = to.includes('@') ? to : `${to}@c.us`; // Ensure the chat ID is in the correct format
-        await client.sendMessage(chatId, message);
+        //const chatId = to.includes('@') ? to : `${to}@c.us`; // Ensure the chat ID is in the correct format
+        const chatId = to.substring(1) + "@c.us";
+        console.log('chatid:', chatId)
+        await client.sendMessage(chatId, text);
 
         res.status(200).json({ message: 'Mensaje enviado correctamente' });
     } catch (error) {
@@ -132,9 +146,33 @@ app.post('/send-message', async (req, res) => {
 });
 
 // Endpoint to fetch all chats
+// app.get('/get-chats', async (req, res) => {
+//     try {
+//         const { userId } = req.query;
+//         console.log('reqr:', req.query)
+
+//         if (!clients[userId] || !clients[userId].ready) {
+//             return res.status(400).json({ message: 'Sesión no iniciada o no lista' });
+//         }
+
+//         const client = clients[userId].client;
+//         const chats = await client.getChats();
+
+//         res.status(200).json({ chats: chats.map(chat => ({ id: chat.id._serialized, name: chat.name })) });
+//     } catch (error) {
+//         console.error('Error obteniendo chats:', error);
+//         res.status(500).json({ message: 'Error obteniendo chats' });
+//     }
+// });
+
 app.get('/get-chats', async (req, res) => {
     try {
-        const { userId } = req.query;
+        const { userId } = req.query;  //Extracting userId from query params
+        console.log('Requested userId:', userId);
+
+        if (!userId) {
+            return res.status(400).json({ message: "Missing userId parameter" });
+        }
 
         if (!clients[userId] || !clients[userId].ready) {
             return res.status(400).json({ message: 'Sesión no iniciada o no lista' });
@@ -149,6 +187,7 @@ app.get('/get-chats', async (req, res) => {
         res.status(500).json({ message: 'Error obteniendo chats' });
     }
 });
+
 
 // Endpoint to fetch messages from a specific chat
 app.get('/get-messages', async (req, res) => {
