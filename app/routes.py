@@ -7,7 +7,7 @@ from app.controllers import (
     create_queue, get_queues, update_queue_priority, reassign_message,
     create_event, get_events, update_event, delete_event, refresh_token,
     start_whatsapp, send_whatsapp_message, get_messages_by_ticket, get_unlinked_messages,
-    send_chatbot_response, assign_agent, resolve_ticket
+    send_chatbot_response, assign_agent, resolve_ticket, receive_message
 )
 import requests
 import os
@@ -52,6 +52,9 @@ class Messages(Resource):
 class MessageStatus(Resource):
     def patch(self, message_id):
         return update_message_status(message_id)
+
+
+
 
 # Ticket routes
 class Tickets(Resource):
@@ -118,6 +121,12 @@ class SendMessage(Resource):
     def post(self):
         return send_whatsapp_message()
 
+
+class RecieveMessage(Resource):
+    @jwt_required()
+    def post(self):
+        return receive_message()
+
 class SendChatbotResponse(Resource):
     @jwt_required()
     def post(self, ticket_id):
@@ -151,6 +160,7 @@ api.add_resource(Events, '/events')
 api.add_resource(EventDetail, '/events/<int:event_id>')
 api.add_resource(StartWhatsApp, '/start-whatsapp')
 api.add_resource(SendMessage, '/send-whatsapp-message')
+api.add_resource(RecieveMessage, '/receive-message')
 api.add_resource(SendChatbotResponse, '/send-chatbot-response/<int:ticket_id>')
 api.add_resource(AssignAgent, '/assign-agent/<int:ticket_id>')
 api.add_resource(ResolveTicket, '/resolve-ticket/<int:ticket_id>')

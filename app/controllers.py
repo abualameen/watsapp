@@ -286,6 +286,111 @@ def start_whatsapp():
         return {"error": str(e)}, 500
 
 
+# def send_whatsapp_message():
+#     try:
+#         logging.debug('Entering send_whatsapp_message function')
+#         verify_jwt_in_request()  # Manually verify the JWT token
+#         logging.debug(f"JWT Identity: {get_jwt_identity()}")
+#         data = request.get_json()
+#         logging.debug(f"data_msg: {data}")
+#         session['to'] = data['to']
+
+#         user_name = get_jwt_identity().get('username')  # Retrieve user ID from the JWT token
+#         logging.debug(f"use_id: {user_name}")
+
+#         if not user_name:
+#             logging.debug(f"use_id: {user_name}")
+#             return jsonify({'error': 'User not logged in'}), 401
+
+#         # user = User.query.filter_by(username=user_name).first()
+#         # logging.debug(f"user: {user}")
+#         # if not user:
+#         #     logging.debug(f"user: {user}")
+#         #     return jsonify({'error': 'User not found'})
+            
+#         # Check if this is the first message from the contact
+#         existing_contact = Contact.query.filter_by(phone_number=data['to']).first()
+#         # if not existing_contact:
+#             # existing_contact = Contact(name=user.name, lastname=user.lastname, phone_number=data['to'], email=user.email)
+#         if not existing_contact:
+#             # Create a new contact with default values
+#             existing_contact = Contact(
+#                 name="Unknown",  # Default name (can be updated later)
+#                 lastname="Unknown",  # Default lastname (can be updated later)
+#                 phone_number=data['to'],
+#                 email="unknown@example.com"  # Default email (can be updated later)
+#             )
+#             db.session.add(existing_contact)
+#             db.session.commit()
+
+#         # Check if this is the first message from the contact
+#         if not Message.query.filter_by(contact_id=existing_contact.id).first():
+#             support_queue = Queue.query.filter_by(name='Support').first()
+#             default_status = TicketStatus.query.filter_by(name='Open').first()
+#             default_priority = Priority.query.filter_by(name='Medium').first()
+
+#             new_ticket = Ticket(
+#                 contact_id=existing_contact.id,
+#                 queue_id=support_queue.id,
+#                 assigned_to=None,  # Initially unassigned
+#                 ticket_status_id=default_status.id,
+#                 priority_id=default_priority.id,
+#                 name=existing_contact.name,  # You might want to handle this differently
+#                 description=data['message']
+#             )
+#             db.session.add(new_ticket)
+#             db.session.commit()
+
+#             # Create a chatbot control entry for the new ticket
+#             chatbot_control = ChatbotControl(
+#                 ticket_id=new_ticket.id,
+#                 is_handled_by_bot=True,
+#                 transferred_to_agent=False
+#             )
+#             db.session.add(chatbot_control)
+#             db.session.commit()
+
+#             # Set the ticket_id for the new message
+#             new_message = Message(
+#                 contact_id=existing_contact.id,
+#                 ticket_id=new_ticket.id,  # Assign the ticket_id here
+#                 direction='inbound',
+#                 content=data['message'],
+#                 sent_by=None,
+#                 is_read=False
+#             )
+#         else:
+#             # If it's not the first message, create the message without a ticket_id
+#             new_message = Message(
+#                 contact_id=existing_contact.id,
+#                 ticket_id=None,  # This will still cause an error if ticket_id is NOT NULL
+#                 direction='inbound',
+#                 content=data['message'],
+#                 sent_by=None,
+#                 is_read=False
+#             )
+
+#         db.session.add(new_message)
+#         db.session.commit()
+
+#         try:
+#             response = whatsapp_service1.send_message(user_name, data['to'], data['message'])
+            
+#             # Ensure the response is JSON serializable
+#             if hasattr(response, 'json'):  # Check if the response has a .json() method
+#                 response_data = response.json()
+#             else:
+#                 response_data = str(response)  # Fallback to string representation
+            
+#             logging.debug(f"response_data: {response_data}")
+#             return {"message": "Mensaje enviado exitosamente", "response": response_data}, 200
+#         except Exception as e:
+#             logging.error(f"Error in send_message: {str(e)}")
+#             return {"error": str(e)}, 500
+#     except Exception as e:
+#         logging.error('Error: %s', str(e))
+#         return jsonify({'error': str(e)}), 500
+
 def send_whatsapp_message():
     try:
         logging.debug('Entering send_whatsapp_message function')
@@ -293,79 +398,82 @@ def send_whatsapp_message():
         logging.debug(f"JWT Identity: {get_jwt_identity()}")
         data = request.get_json()
         logging.debug(f"data_msg: {data}")
-        session['to'] = data['to']
 
-        user_name = get_jwt_identity().get('username')  # Retrieve user ID from the JWT token
-        logging.debug(f"use_id: {user_name}")
+        # Retrieve the logged-in user (agent)
+        user_name = get_jwt_identity().get('username')  # Retrieve username from the JWT token
+        logging.debug(f"user_name: {user_name}")
 
         if not user_name:
-            logging.debug(f"use_id: {user_name}")
+            logging.debug(f"user_name: {user_name}")
             return jsonify({'error': 'User not logged in'}), 401
 
-        user = User.query.filter_by(username=user_name).first()
-        logging.debug(f"user: {user}")
-        if not user:
-            logging.debug(f"user: {user}")
-            return jsonify({'error': 'User not found'})
-            
-        # Check if this is the first message from the contact
+        # user = User.query.filter_by(username=user_name).first()
+        # logging.debug(f"user: {user}")
+        # if not user:
+        #     logging.debug(f"user: {user}")
+        #     return jsonify({'error': 'User not found'}), 404
+
+        # Retrieve or create the contact (customer)
         existing_contact = Contact.query.filter_by(phone_number=data['to']).first()
         if not existing_contact:
-            existing_contact = Contact(name=user.name, lastname=user.lastname, phone_number=data['to'], email=user.email)
+            # Create a new contact with default values
+            existing_contact = Contact(
+                name="Unknown",  # Default name (can be updated later)
+                lastname="Unknown",  # Default lastname (can be updated later)
+                phone_number=data['to'],
+                email="unknown@example.com"  # Default email (can be updated later)
+            )
             db.session.add(existing_contact)
             db.session.commit()
 
-        # Check if this is the first message from the contact
-        if not Message.query.filter_by(contact_id=existing_contact.id).first():
+            # Ask the customer for their name and email
+            whatsapp_service1.send_message(user_name, data['to'], "Hi! Could you please provide your name and email address so we can assist you better?")
+            return jsonify({"message": "Contact created. Requested additional information."}), 200
+
+        # Check if there's an open ticket for this contact
+        open_status = TicketStatus.query.filter_by(name='Open').first()
+        ticket = Ticket.query.filter_by(contact_id=existing_contact.id, ticket_status_id=open_status.id).first()
+
+        if not ticket:
+            # Create a new ticket for the contact
             support_queue = Queue.query.filter_by(name='Support').first()
-            default_status = TicketStatus.query.filter_by(name='Open').first()
             default_priority = Priority.query.filter_by(name='Medium').first()
 
-            new_ticket = Ticket(
+            ticket = Ticket(
                 contact_id=existing_contact.id,
                 queue_id=support_queue.id,
                 assigned_to=None,  # Initially unassigned
-                ticket_status_id=default_status.id,
+                ticket_status_id=open_status.id,
                 priority_id=default_priority.id,
-                name=existing_contact.name,  # You might want to handle this differently
-                description=data['message']
+                name=existing_contact.name,
+                description=data['message']  # Use the first message as the ticket description
             )
-            db.session.add(new_ticket)
+            db.session.add(ticket)
             db.session.commit()
 
             # Create a chatbot control entry for the new ticket
             chatbot_control = ChatbotControl(
-                ticket_id=new_ticket.id,
-                is_handled_by_bot=True,
+                ticket_id=ticket.id,
+                is_handled_by_bot=False,  # Ticket is handled by an agent
                 transferred_to_agent=False
             )
             db.session.add(chatbot_control)
             db.session.commit()
 
-            # Set the ticket_id for the new message
-            new_message = Message(
-                contact_id=existing_contact.id,
-                ticket_id=new_ticket.id,  # Assign the ticket_id here
-                direction='inbound',
-                content=data['message'],
-                sent_by=None,
-                is_read=False
-            )
-        else:
-            # If it's not the first message, create the message without a ticket_id
-            new_message = Message(
-                contact_id=existing_contact.id,
-                ticket_id=None,  # This will still cause an error if ticket_id is NOT NULL
-                direction='inbound',
-                content=data['message'],
-                sent_by=None,
-                is_read=False
-            )
-
+        # Store the outbound message (sent by the agent)
+        new_message = Message(
+            contact_id=existing_contact.id,
+            ticket_id=ticket.id,  # Link to the ticket
+            direction='outbound',  # Outbound message (sent by the agent)
+            content=data['message'],
+            sent_by=user.id,  # Sent by the logged-in user (agent)
+            is_read=False
+        )
         db.session.add(new_message)
         db.session.commit()
 
         try:
+            # Send the message via the WhatsApp service
             response = whatsapp_service1.send_message(user_name, data['to'], data['message'])
             
             # Ensure the response is JSON serializable
@@ -522,5 +630,135 @@ def close_ticket(ticket_id):
     ticket.status = "closed"
     db.session.commit()
     return {"message": "Ticket cerrado exitosamente."}, 200
+
+
+
+
+# Flask endpoint to handle incoming messages
+import re
+
+def receive_message():
+    try:
+        data = request.json
+        sender = data['from']  # Customer's WhatsApp number
+        content = data['content']  # Message content
+        logging.debug(f"sender: {sender}")
+        logging.debug(f"content: {content}")
+
+        # Format the sender phone number
+        # Remove "@c.us" and add "+" prefix
+        formatted_sender = f"+{sender.split('@')[0]}"
+        logging.debug(f"Formatted sender: {formatted_sender}")  # Debugging: Log the formatted sender
+
+        verify_jwt_in_request()  # Manually verify the JWT token
+        logging.debug(f"JWT Identity: {get_jwt_identity()}")
+        # data = request.get_json()
+        # logging.debug(f"data_msg: {data}")
+
+        # Retrieve the logged-in user (agent)
+        user_name = get_jwt_identity().get('username')  # Retrieve username from the JWT token
+        logging.debug(f"user_name: {user_name}")
+
+
+
+        # Check if the contact exists
+        existing_contact = Contact.query.filter_by(phone_number=sender).first()
+        if not existing_contact:
+            # Create a new contact with default values
+            existing_contact = Contact(
+                name="Unknown",
+                lastname="Unknown",
+                phone_number=sender,
+                email="unknown@example.com"
+            )
+            db.session.add(existing_contact)
+            db.session.commit()
+
+            # Ask the customer for their name and email
+            whatsapp_service1.send_message(user_name, sender, "Hi! Could you please provide your name and email address so we can assist you better?")
+            return jsonify({"message": "Contact created. Requested additional information."}), 200
+
+        # Check if the contact has missing information
+        if existing_contact.name == "Unknown" or existing_contact.email == "unknown@example.com":
+            # Try to extract name and email from the message
+            name_match = re.search(r"name is ([A-Za-z\s]+)", content, re.IGNORECASE)
+            email_match = re.search(r"email is ([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})", content, re.IGNORECASE)
+
+            if name_match and email_match:
+                # Extract name and email
+                name = name_match.group(1).strip()
+                email = email_match.group(1).strip()
+
+                # Update the contact record
+                existing_contact.name = name
+                existing_contact.email = email
+                db.session.commit()
+
+                # Acknowledge the customer
+                whatsapp_service1.send_message(user_name, sender, f"Thank you, {name}! We have updated your contact information.")
+            else:
+                # Check if partial information is provided
+                if name_match:
+                    # Only name is provided
+                    name = name_match.group(1).strip()
+                    existing_contact.name = name
+                    db.session.commit()
+
+                    # Ask for email
+                    whatsapp_service1.send_message(user_name, sender, f"Thank you, {name}! Could you please provide your email address?")
+                    return jsonify({"message": "Partial information received. Requested email."}), 200
+
+                elif email_match:
+                    # Only email is provided
+                    email = email_match.group(1).strip()
+                    existing_contact.email = email
+                    db.session.commit()
+
+                    # Ask for name
+                    whatsapp_service1.send_message(user_name, sender, f"Thank you! Could you please provide your name?")
+                    return jsonify({"message": "Partial information received. Requested name."}), 200
+
+                else:
+                    # No valid information provided
+                    whatsapp_service1.send_message(user_name, sender, "Sorry, I didn't understand. Please provide your name and email in the format: 'My name is [Your Name], and my email is [Your Email].'")
+                    return jsonify({"message": "Invalid format. Requested information again."}), 200
+
+        # Check if there's an open ticket for this contact
+        open_status = TicketStatus.query.filter_by(name='Open').first()
+        ticket = Ticket.query.filter_by(contact_id=existing_contact.id, ticket_status_id=open_status.id).first()
+
+        if not ticket:
+            # Create a new ticket
+            support_queue = Queue.query.filter_by(name='Support').first()
+            default_priority = Priority.query.filter_by(name='Medium').first()
+
+            ticket = Ticket(
+                contact_id=existing_contact.id,
+                queue_id=support_queue.id,
+                assigned_to=None,  # Initially unassigned
+                ticket_status_id=open_status.id,
+                priority_id=default_priority.id,
+                name=existing_contact.name,
+                description=content  # Use the first message as the ticket description
+            )
+            db.session.add(ticket)
+            db.session.commit()
+
+        # Store the inbound message
+        new_message = Message(
+            contact_id=existing_contact.id,
+            ticket_id=ticket.id,
+            direction='inbound',  # Incoming message
+            content=content,
+            sent_by=None,  # Sent by the customer
+            is_read=False
+        )
+        db.session.add(new_message)
+        db.session.commit()
+
+        return jsonify({"message": "Message received and processed successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 

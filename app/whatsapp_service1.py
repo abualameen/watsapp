@@ -42,12 +42,12 @@ class WhatsAppService1:
         else:
             print("No Node.js server is currently running.")
 
-    def send_message(self, user_id, contact, message):
+    def send_message(self, user_name, contact, message):
         """Sends a message via the Node.js server."""
         try:
             url = f"{self.base_url}/send-message"
             payload = {
-                "userId": user_id,
+                "userId": user_name,
                 "to": contact,
                 "text": message
             }

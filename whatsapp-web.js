@@ -2,6 +2,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode');
+const axios = require('axios'); // Add axios for HTTP requests
 
 const app = express();
 
@@ -84,10 +85,26 @@ app.post('/start-session', async (req, res) => {
         });
 
         // Handle incoming messages
+        // client.on('message', async (msg) => {
+        //     console.log(`Message received: ${msg.body} from ${msg.from}`);
+        //     if (msg.body.toLowerCase() === 'hola') {
+        //         await msg.reply('¡Hola! ¿Cómo puedo ayudarte?');
+        //     }
+        // });
+
+        // Handle incoming messages
         client.on('message', async (msg) => {
             console.log(`Message received: ${msg.body} from ${msg.from}`);
-            if (msg.body.toLowerCase() === 'hola') {
-                await msg.reply('¡Hola! ¿Cómo puedo ayudarte?');
+
+            // Forward the message to the Flask backend
+            try {
+                const response = await axios.post('http://localhost:5000/api/receive-message', {
+                    from: msg.from,
+                    content: msg.body,
+                });
+                console.log('Message forwarded to Flask backend:', response.data);
+            } catch (error) {
+                console.error('Error forwarding message to Flask backend:', error.message);
             }
         });
 
@@ -145,25 +162,7 @@ app.post('/send-message', async (req, res) => {
     }
 });
 
-// Endpoint to fetch all chats
-// app.get('/get-chats', async (req, res) => {
-//     try {
-//         const { userId } = req.query;
-//         console.log('reqr:', req.query)
 
-//         if (!clients[userId] || !clients[userId].ready) {
-//             return res.status(400).json({ message: 'Sesión no iniciada o no lista' });
-//         }
-
-//         const client = clients[userId].client;
-//         const chats = await client.getChats();
-
-//         res.status(200).json({ chats: chats.map(chat => ({ id: chat.id._serialized, name: chat.name })) });
-//     } catch (error) {
-//         console.error('Error obteniendo chats:', error);
-//         res.status(500).json({ message: 'Error obteniendo chats' });
-//     }
-// });
 
 app.get('/get-chats', async (req, res) => {
     try {

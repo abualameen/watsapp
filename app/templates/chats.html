@@ -92,33 +92,33 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            console.log("✅ DOM fully loaded!");
+            console.log("DOM fully loaded!");
 
             const sendButton = document.getElementById("sendButton");
             const messageInput = document.getElementById("messageInput");
 
             if (!sendButton) {
-                console.error("❌ Send button not found!");
+                console.error("Send button not found!");
                 return;
             }
             if (!messageInput) {
-                console.error("❌ Message input field not found!");
+                console.error("Message input field not found!");
                 return;
             }
 
             sendButton.addEventListener("click", function () {
-                console.log("📩 Send button clicked!");
+                console.log("Send button clicked!");
 
                 const message = messageInput.value.trim();
                 if (!message) {
-                    console.warn("⚠️ Cannot send an empty message!");
+                    console.warn("Cannot send an empty message!");
                     return;
                 }
 
                 sendMessage();
             });
 
-            console.log("✅ Send button event listener added successfully!");
+            console.log("Send button event listener added successfully!");
 
             fetchChats();
         });
@@ -138,7 +138,7 @@
                 }
 
                 const data = await response.json();
-                console.log("✅ Chats received:", data);
+                console.log("Chats received:", data);
 
                 const chatList = document.getElementById("chatList");
                 chatList.innerHTML = "";
@@ -153,13 +153,13 @@
                 });
 
             } catch (error) {
-                console.error("❌ Error fetching chats:", error);
+                console.error("Error fetching chats:", error);
             }
         }
 
         async function fetchMessages(chatId) {
             selectedChat = chatId;
-            console.log(`📡 Fetching messages for chatId: ${chatId}`);
+            console.log(`Fetching messages for chatId: ${chatId}`);
 
             try {
                 const response = await fetch(`http://localhost:3000/get-messages?userId=${userId}&chatId=${chatId}`);
@@ -169,10 +169,10 @@
                 }
 
                 const data = await response.json();
-                console.log("✅ Messages API response:", data);  // Debug log
+                console.log("Messages API response:", data);  // Debug log
 
                 if (!data.messages || !Array.isArray(data.messages)) {
-                    throw new Error("⚠️ Invalid messages format: Expected an array but got " + typeof data.messages);
+                    throw new Error("Invalid messages format: Expected an array but got " + typeof data.messages);
                 }
 
                 const chatMessages = document.getElementById('chatMessages');
@@ -186,7 +186,7 @@
                 });
 
             } catch (error) {
-                console.error("❌ Error fetching messages:", error);
+                console.error("Error fetching messages:", error);
             }
         }
 
@@ -198,11 +198,11 @@
             console.log('slectedChat:', selectedChat)
 
             if (!message || !selectedChat) {
-                console.warn("⚠️ Cannot send message: No message text or chat selected!");
+                console.warn("Cannot send message: No message text or chat selected!");
                 return;
             }
 
-            console.log(`📨 Sending message: "${message}" to chatId: ${selectedChat}`);
+            console.log(`ending message: "${message}" to chatId: ${selectedChat}`);
 
             try {
                 const response = await fetch('http://localhost:3000/send-message', {
@@ -219,12 +219,12 @@
                     throw new Error(`Failed to send message (Status: ${response.status})`);
                 }
 
-                console.log("✅ Message sent successfully!");
+                console.log("Message sent successfully!");
                 messageInput.value = '';
                 fetchMessages(selectedChat); // Refresh messages
 
             } catch (error) {
-                console.error("❌ Error sending message:", error);
+                console.error("Error sending message:", error);
             }
         }
     </script>
